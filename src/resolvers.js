@@ -2,40 +2,27 @@ const gql = require("graphql-tag")
 
 const store = {
   campaigns: [
-    {
-      id: 1,
-      site_id: 55,
-      name: "Campaign 1",
-      bid_modifiers_disabled: false,
-      channel: "shopping",
-    },
-    {
-      id: 2,
-      site_id: 55,
-      name: "Campaign 2",
-      bid_modifiers_disabled: false,
-      channel: "shopping",
-    },
+    { id: 11231241, site_id: 55, name: "Campaign 1", bid_modifiers_disabled: false, channel: "shopping", },
+    { id: 21212342, site_id: 55, name: "Campaign 2", bid_modifiers_disabled: false, channel: "shopping", },
+    { id: 31212342, site_id: 55, name: "Campaign 3", bid_modifiers_disabled: false, channel: "shopping", },
+    { id: 41212342, site_id: 55, name: "Campaign 4", bid_modifiers_disabled: false, channel: "shopping", },
+    { id: 51212342, site_id: 55, name: "Campaign 5", bid_modifiers_disabled: false, channel: "shopping", },
+    { id: 61212342, site_id: 55, name: "Campaign 6", bid_modifiers_disabled: false, channel: "search", },
+    { id: 71212342, site_id: 55, name: "Campaign 7", bid_modifiers_disabled: false, channel: "search", },
   ],
   bidModifierConfigs: [
-    {
-      id: 2,
-      channel: "shopping",
-      name: "shopping config 1",
-      site_id: 55,
-    }
+    { id: 2, channel: "shopping", name: "shopping config 1", site_id: 55, },
+    { id: 3, channel: "shopping", name: "shopping config 3", site_id: 55, },
+    { id: 4, channel: "search", name: "search config", site_id: 55, },
   ],
   bidModifierConfigCampaigns: [
-    {
-      config_id: 2,
-      campaign_id: 1,
-      site_id: 55,
-    },
-    {
-      config_id: 2,
-      campaign_id: 2,
-      site_id: 55,
-    },
+    { config_id: 2, campaign_id: 11231241, site_id: 55, },
+    { config_id: 2, campaign_id: 21212342, site_id: 55, },
+    { config_id: 3, campaign_id: 41212342, site_id: 55, },
+    { config_id: 3, campaign_id: 51212342, site_id: 55, },
+    { config_id: 3, campaign_id: 31212342, site_id: 55, },
+    { config_id: 4, campaign_id: 71212342, site_id: 55, },
+    { config_id: 4, campaign_id: 61212342, site_id: 55, },
   ],
 }
 
@@ -53,10 +40,10 @@ const typeDefs = gql`
     channel: String!
     name: String
     site_id: Int!
-    campaigns: [Campaign]
   }
 
   type BidModifierConfigCampaign {
+    id: ID
     config_id: ID
     campaign_id: ID
   }
@@ -64,31 +51,16 @@ const typeDefs = gql`
   type Query {
     campaigns(site_id: Int): [Campaign]
     bidModifierConfigs(site_id: Int): [BidModifierConfig]
-    bidModifierConfigCampaigns(site_id: Int): [ID]
-    hello: String
+    bidModifierConfigCampaigns(site_id: Int): [BidModifierConfigCampaign]
   }
 
   type Mutation {
-    unsubCampaign(config_id: ID, campaign_id: ID): BidModifierConfig
-  }
-
-  interface MutationResponse {
-    code: String!
-    success: Boolean!
-    message: String!
-  }
-
-  type UpdateBidModifierConfigCampaigns implements MutationResponse {
-    code: String!
-    success: Boolean!
-    message: String!
-    BidModifierConfigCampaigns: BidModifierConfig
+    putBidModifierConfigCampaigns(config_id: ID, campaign_ids: [ID]): [BidModifierConfigCampaign]
   }
 `
 
 const resolvers = {
   Query: {
-    hello: () => 'world',
     campaigns: (_, {site_id}) => {
       if (site_id) { return store.campaigns.filter(x => x.site_id == site_id) }
       return store.campaigns
@@ -98,27 +70,23 @@ const resolvers = {
       if (site_id) { ret = ret.filter(x => x.site_id == site_id) }
       if (config_id) { ret = ret.filter(x => x.id == config_id) }
 
-      ret = ret.map(x => {
-        let campaigns = store.bidModifierConfigCampaigns
-          .filter(cc => cc.config_id == x.id)
-          .map(cc => store.campaigns.filter(camp => camp.id == cc.campaign_id)[0])
-        return Object.assign({}, x, {campaigns})
-      })
-
       return ret
     },
-    bidModifierConfigCampaigns: (_, {site_id}) => store.bidModifierConfigCampaigns.filter(x => x.site_id == site_id).map(x => x.campaign_id),
+    bidModifierConfigCampaigns: (_, {site_id}) => {
+      let ret = store.bidModifierConfigCampaigns
+        .map(({config_id, campaign_id}) => ({config_id, campaign_id, id: config_id + '_' + campaign_id}))
+      console.log(ret)
+      return ret
+    },
   },
   Mutation: {
-    unsubCampaign: (_, {config_id, campaign_id}) => {
-      console.log("mutation:", config_id, campaign_id)
-      store.bidModifierConfigCampaigns = store.bidModifierConfigCampaigns.filter(x => x.config_id != config_id || x.campaign_id != campaign_id)
-      let updated = resolvers.Query.bidModifierConfigs(false, {config_id})
-      return updated[0]
-      //return {
-      //  success: true,
-      //  bidModifierConfigCampaigns: store.bidModifierConfigCampaigns,
-      //}
+    putBidModifierConfigCampaigns: (_, {config_id, campaign_ids}) => {
+      console.log(config_id, campaign_ids)
+      const rest = store.bidModifierConfigCampaigns.filter(x => x.config_id != config_id)
+      const updated = campaign_ids.map(campaign_id => ({config_id, campaign_id}))
+      const ret = rest.concat(updated)
+      store.bidModifierConfigCampaigns = ret
+      return resolvers.Query.bidModifierConfigCampaigns({},{})
     },
   }
 };

@@ -17,20 +17,16 @@ const client = new ApolloClient({
   }
 });
 
-const unsubCampaign = gql`
-  mutation UnsubCampaign($config_id: ID, $campaign_id: ID) {
-    unsubCampaign(config_id: $config_id, campaign_id: $campaign_id) {
+
+const putBidModifierConfigCampaigns = gql`
+  mutation PutBidModifierConfigCampaigns($config_id: ID, $campaign_ids: [ID]) {
+    putBidModifierConfigCampaigns(config_id: $config_id, campaign_ids: $campaign_ids) {
       id,
-      channel,
-      name,
-      site_id,
-      campaigns {
-        id,
-        name,
-      }
+      config_id,
+      campaign_id
     }
   }
-`;
+`
 
 const getBidModifierConfigs = gql`
 {
@@ -39,60 +35,112 @@ const getBidModifierConfigs = gql`
     site_id,
     name,
     channel,
-    campaigns {
-      id,
-      name,
-    }
   }
 }
 `
+
+const getBidModifierConfigCampaigns = gql`
+{
+  bidModifierConfigCampaigns {
+    id,
+    config_id,
+    campaign_id,
+  }
+}
+`
+
+const getCampaigns = gql`
+{
+  campaigns {
+    id,
+    name,
+    channel,
+  }
+}
+`
+
 const BidModifierConfigCampaign = (props) => (
   <div>
-    {props.campaign.id}: {props.campaign.name}
-    <input type="button" value="remove" onClick={() => props.mutate({
-      variables: {campaign_id: props.campaign.id, config_id: props.configId},
-    })}/>
+    {props.campaign.id}: {props.campaign.name} [{props.campaign.channel}]
+    <input type="button" value="remove" onClick={() => props.onremove()}/>
   </div>
 )
 
-//const RemovableBidModifierConfigCampaign = graphql(unsubCampaign, {
-//  props: ({ ownProps, mutate }) => ({
-//
-//  })
-//})
 
-const RemovableBidModifierConfigCampaign = graphql(unsubCampaign, {
+const bidModifierConfigCampaigns = (props) => {
+  const makeunsub = (id) => () => {
+    let updated = props.campaigns
+      .filter(x => x.id != id)
+      .map(x => x.id)
+
+    props.mutate({
+      variables: {config_id: props.config_id, campaign_ids: updated}
+    })
+  }
+
+  return (
+    <div>
+      <ul>
+        { props.campaigns.map(c =>
+            <BidModifierConfigCampaign
+              key={c.id}
+              campaign={c}
+              onremove={makeunsub(c.id)}
+            />
+          )}
+      </ul>
+    </div>
+  )
+}
+
+const BidModifierConfigCampaigns = graphql(putBidModifierConfigCampaigns, {
   options: {
-    update: (proxy, { data: {unsubCampaign} }) => {
-      const data = proxy.readQuery({query: getBidModifierConfigs})
-      console.log(data)
-      let updated = data.bidModifierConfigs.filter(x => x.config_id == unsubCampaign.config_id)
-      console.log(updated)
-      updated.forEach(x => x.campaigns = unsubCampaign.campaigns)
-      proxy.writeQuery({query: getBidModifierConfigs, data})
+    update: (cache, { data: {putBidModifierConfigCampaigns} }) => {
+      //let existing = cache.readQuery({query: getBidModifierConfigCampaigns})
+      //console.log(existing, data)
+      cache.writeQuery({
+        query: getBidModifierConfigCampaigns,
+        data: {bidModifierConfigCampaigns: putBidModifierConfigCampaigns}
+      })
     },
   },
-})(BidModifierConfigCampaign)
+
+})(bidModifierConfigCampaigns)
 
 const Campaigns = () => (
-  <Query
-    query={getBidModifierConfigs}
-  >
-  {({ loading, error, data }) => {
-    if (loading) return <p>Loading...</p>;
-    if (error) return <p>Error :(</p>;
+  <Query query={getBidModifierConfigs} >
+  {({ loading, error, data: {bidModifierConfigs} }) => (
 
-    return data.bidModifierConfigs.map(x => (
-      <div key={x.id}>
-        <p> {x.id}: {x.name} </p>
-        <ul>
-        { x.campaigns.map(camp =>
-            <RemovableBidModifierConfigCampaign key={camp.id} campaign={camp} configId={x.id}/>
-          )}
-        </ul>
-      </div>
-    ))
-  }}
+  <Query query={getCampaigns} >
+  {({ loading: loadingCampaigns, errorCampaigns, data: {campaigns}}) => (
+
+    <Query query={getBidModifierConfigCampaigns} >
+      {({ loading: loading1, error: error1, data: {bidModifierConfigCampaigns}}) => {
+
+        if (loading || loading1 || loadingCampaigns) return <p>Loading...</p>;
+        if (error || error1 || errorCampaigns) return <p>Error :(</p>;
+
+        const byid = {}
+        campaigns.forEach(x => byid[x.id] = x)
+
+        return bidModifierConfigs.map(x => (
+          <div key={x.id}>
+            <p> {x.id}: {x.name} </p>
+            <ul>
+              <BidModifierConfigCampaigns
+                config_id={x.id}
+                campaigns={bidModifierConfigCampaigns
+                  .filter(cc => cc.config_id == x.id)
+                  .map(cc => byid[cc.campaign_id])}
+              />
+            </ul>
+          </div>
+        ))
+      }}
+    </Query>
+  )}
+  </Query>
+  )}
   </Query>
 )
 
