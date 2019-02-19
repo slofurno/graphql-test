@@ -51,11 +51,16 @@ const typeDefs = gql`
   type Query {
     campaigns(site_id: Int): [Campaign]
     bidModifierConfigs(site_id: Int): [BidModifierConfig]
-    bidModifierConfigCampaigns(site_id: Int): [BidModifierConfigCampaign]
+    bidModifierConfigCampaigns(site_id: Int, config_id: ID): [BidModifierConfigCampaign]
+  }
+
+  type BidModifierConfigCampaignMutateResponse {
+    bidModifierConfigCampaigns: [BidModifierConfigCampaign]
+    config_id: ID
   }
 
   type Mutation {
-    putBidModifierConfigCampaigns(config_id: ID, campaign_ids: [ID]): [BidModifierConfigCampaign]
+    putBidModifierConfigCampaigns(config_id: ID, campaign_ids: [ID]): BidModifierConfigCampaignMutateResponse
   }
 `
 
@@ -72,10 +77,13 @@ const resolvers = {
 
       return ret
     },
-    bidModifierConfigCampaigns: (_, {site_id}) => {
+    bidModifierConfigCampaigns: (_, {site_id, config_id}) => {
       let ret = store.bidModifierConfigCampaigns
+      if (config_id) { ret = ret.filter(x => x.config_id == config_id) }
+
+      ret = ret
         .map(({config_id, campaign_id}) => ({config_id, campaign_id, id: config_id + '_' + campaign_id}))
-      console.log(ret)
+      //console.log(ret)
       return ret
     },
   },
@@ -84,9 +92,14 @@ const resolvers = {
       console.log(config_id, campaign_ids)
       const rest = store.bidModifierConfigCampaigns.filter(x => x.config_id != config_id)
       const updated = campaign_ids.map(campaign_id => ({config_id, campaign_id}))
-      const ret = rest.concat(updated)
-      store.bidModifierConfigCampaigns = ret
-      return resolvers.Query.bidModifierConfigCampaigns({},{})
+      store.bidModifierConfigCampaigns = rest.concat(updated)
+
+      const ret = {
+        bidModifierConfigCampaigns: resolvers.Query.bidModifierConfigCampaigns({},{config_id}),
+        config_id,
+      }
+      console.log(ret)
+      return ret
     },
   }
 };

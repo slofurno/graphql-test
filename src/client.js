@@ -21,9 +21,12 @@ const client = new ApolloClient({
 const putBidModifierConfigCampaigns = gql`
   mutation PutBidModifierConfigCampaigns($config_id: ID, $campaign_ids: [ID]) {
     putBidModifierConfigCampaigns(config_id: $config_id, campaign_ids: $campaign_ids) {
-      id,
       config_id,
-      campaign_id
+      bidModifierConfigCampaigns {
+        id,
+        config_id,
+        campaign_id,
+      }
     }
   }
 `
@@ -39,9 +42,19 @@ const getBidModifierConfigs = gql`
 }
 `
 
+//const getBidModifierConfigCampaigns = gql`
+//{
+//  bidModifierConfigCampaigns {
+//    id,
+//    config_id,
+//    campaign_id,
+//  }
+//}
+//`
+
 const getBidModifierConfigCampaigns = gql`
-{
-  bidModifierConfigCampaigns {
+query BidModifierConfigCampaigns($config_id: ID) {
+  bidModifierConfigCampaigns(config_id: $config_id) {
     id,
     config_id,
     campaign_id,
@@ -95,16 +108,25 @@ const bidModifierConfigCampaigns = (props) => {
 
 const BidModifierConfigCampaigns = graphql(putBidModifierConfigCampaigns, {
   options: {
-    update: (cache, { data: {putBidModifierConfigCampaigns} }) => {
+    update: (cache, { data: {putBidModifierConfigCampaigns: {config_id, bidModifierConfigCampaigns}}}) => {
       //let existing = cache.readQuery({query: getBidModifierConfigCampaigns})
       //console.log(existing, data)
-      cache.writeQuery({
+      //cache.writeQuery({
+      //  query: getBidModifierConfigCampaigns,
+      //  data: {bidModifierConfigCampaigns: putBidModifierConfigCampaigns}
+      //})
+      let existing = cache.readQuery({query: getBidModifierConfigCampaigns})
+      let keep = existing.bidModifierConfigCampaigns.filter(x => x.config_id != config_id)
+      let updated = keep.concat(bidModifierConfigCampaigns)
+
+      let write = {
         query: getBidModifierConfigCampaigns,
-        data: {bidModifierConfigCampaigns: putBidModifierConfigCampaigns}
-      })
+        data: {bidModifierConfigCampaigns: updated},
+        //variables: {config_id},
+      }
+      cache.writeQuery(write)
     },
   },
-
 })(bidModifierConfigCampaigns)
 
 const Campaigns = () => (
